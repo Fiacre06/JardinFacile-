@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Inscription</title>
+<style>
+body { font-family: Arial; background:#f2f7f4; padding:20px; }
+.container { max-width:400px; margin:auto; background:white; padding:20px; border-radius:10px; }
+input, button { width:100%; padding:10px; margin:10px 0; border-radius:5px; border:1px solid #ccc; }
+button { background:#2e8b57; color:white; border:none; cursor:pointer; }
+button:hover { background:#246b45; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h3>Inscription</h3>
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Mot de passe">
+  <button id="registerBtn">S'inscrire</button>
+  <p>Déjà un compte ? <a href="login.html">Connexion</a></p>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+const supabaseUrl = 'https://czbqmzclcxitxxfydadl.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6YnFtemNsY3BpdHh4ZnlkYWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwOTU1MTMsImV4cCI6MjA4MjY3MTUxM30.UyImvThNMpdg9Fooqo7Hy1flaAbPKeKkpuSaYLUc--E'
+const supabase = createClient(supabaseUrl, supabaseKey)
+
+document.getElementById("registerBtn").addEventListener("click", async () => {
+  const email = document.getElementById("email").value.trim()
+  const password = document.getElementById("password").value.trim()
+
+  if(!email || !password) return alert("Remplissez tous les champs")
+
+  const { error } = await supabase.auth.signUp({ email, password })
+  if(error) return alert("Erreur : " + error.message)
+
+  alert("Compte créé avec succès ! Veuillez vérifier votre email pour confirmer.")
+  location.href = 'login.html'
+})
+</script>
+
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Messages – Vendeur</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body { font-family: Arial; background: #f2f7f4; padding: 20px; }
+.topbar { display:flex; justify-content:space-between; align-items:center; background:#2e8b57; color:white; padding:10px 20px; }
+.topbar button { background:#c0392b; color:white; border:none; padding:6px 10px; border-radius:5px; cursor:pointer; }
+#messagesList { max-width:800px; margin:20px auto; background:white; border-radius:10px; padding:20px; }
+.userRow { display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #ccc; cursor:pointer; }
+.userRow:hover { background:#e2f0e8; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <span id="userEmail">Connecté : </span>
+    <button id="logoutBtn">Déconnexion</button>
+</div>
+
+<h3>Messages reçus</h3>
+<div id="messagesList"></div>
+
+<script type="module">
+import { supabase } from './js/supabase.js'
+
+let currentUser = null;
+
+// Vérifier connexion
+const { data:{user} } = await supabase.auth.getUser();
+if(!user) location.href = 'login.html';
+currentUser = user;
+document.getElementById('userEmail').textContent = "Connecté : " + user.email;
+
+// Déconnexion
+document.getElementById('logoutBtn').onclick = async ()=>{
+    await supabase.auth.signOut();
+    location.href='login.html';
+}
+
+// Charger la liste des acheteurs qui ont envoyé des messages
+async function loadMessagesList(){
+    // Récupérer les messages envoyés au vendeur
+    const { data, error } = await supabase
+        .from('messages')
+        .select('from_user, message, created_at')
+        .eq('to_user', currentUser.id)
+        .order('created_at', { ascending: false });
+    
+    if(error){ console.error(error); return; }
+
+    // Grouper par utilisateur
+    const grouped = {};
+    data.forEach(m=>{
+        if(!grouped[m.from_user]) grouped[m.from_user] = m;
+    });
+
+    const container = document.getElementById('messagesList');
+    container.innerHTML = '';
+    for(const userId in grouped){
+        const msg = grouped[userId];
+        const row = document.createElement('div');
+        row.className = 'userRow';
+        row.innerHTML = `<span>${msg.from_user} : ${msg.message}</span>
+                         <span>${new Date(msg.created_at).toLocaleString()}</span>`;
+        row.onclick = ()=>window.location.href = `chat.html?to=${userId}`;
+        container.appendChild(row);
+    }
+}
+
+loadMessagesList();
+</script>
+
+</body>
+</html>

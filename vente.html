@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Vente – Mes Produits</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body { font-family:Arial; background:#f2f7f4; margin:0; padding:20px; overflow-x:hidden; }
+
+/* Topbar */
+.topbar { display:flex; flex-direction:column; align-items:flex-start; background:#2e8b57; color:white; padding:20px; border-radius:8px; margin-bottom:20px; }
+.topbar span { font-size:1.2em; font-weight:bold; margin-bottom:10px; }
+.topbar button { border:none; padding:8px 14px; border-radius:6px; cursor:pointer; color:white; margin-top:5px; font-weight:bold; }
+.logout { background:#c0392b; }
+.logout:hover { background:#e74c3c; }
+
+/* Formulaire ajout produit */
+.add-product { background:white; padding:15px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); margin-bottom:20px; }
+.add-product input, .add-product textarea { width:100%; padding:10px; margin:8px 0; border-radius:6px; border:1px solid #ccc; font-size:1em; }
+.addBtn { background:#2e8b57; color:white; border:none; padding:10px 15px; border-radius:6px; cursor:pointer; font-weight:bold; transition:0.2s; width:100%; }
+.addBtn:hover { background:#27ae60; }
+
+/* Liste produits - scroll horizontal */
+.container { max-width:1000px; margin:auto; display:flex; flex-direction:row; gap:20px; overflow-x:auto; padding-bottom:10px; }
+.myProduct { background:white; padding:15px; border-radius:8px; display:flex; flex-direction:column; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.1); min-width:250px; flex-shrink:0; }
+.myProduct img { width:150px; height:150px; object-fit:cover; border-radius:8px; margin-bottom:10px; }
+.myProduct-info { text-align:center; margin-bottom:10px; }
+
+/* Boutons produits */
+.messageBtn { background: #2e8b57; color: white; padding: 12px 24px; border-radius:6px; border:none; cursor:pointer; font-weight:bold; transition:0.2s; margin-top:10px; }
+.messageBtn:hover { background:#27ae60; }
+
+.myProduct-buttons-bottom { display:flex; gap:10px; justify-content:center; margin-top:10px; }
+.editBtn { background: #2980b9; color: white; padding: 8px 16px; border-radius:6px; border:none; cursor:pointer; font-weight:bold; transition:0.2s; }
+.editBtn:hover { background:#3498db; }
+.deleteBtn { background: #c0392b; color: white; padding: 8px 16px; border-radius:6px; border:none; cursor:pointer; font-weight:bold; transition:0.2s; }
+.deleteBtn:hover { background:#e74c3c; }
+
+/* Chat */
+.chat-container { position:fixed; top:10%; left:0; width:300px; height:90%; background:white; border-right:2px solid #2e8b57; display:flex; flex-direction:column; transform:translateX(-100%); transition:0.3s ease; z-index:1000; }
+.chat-container.open { transform:translateX(0); }
+.chat-container h4 { margin:0; padding:15px 0; text-align:center; color:#2e8b57; border-bottom:1px solid #ddd; }
+.buyerList { display:flex; flex-direction:column; gap:8px; max-height:120px; overflow-y:auto; padding:0 10px; }
+.buyerBtn { padding:8px 12px; border:none; border-radius:6px; background:#34495e; color:white; cursor:pointer; text-align:left; transition:0.2s; font-weight:bold; width:100%; }
+.buyerBtn:hover { background:#2c3e50; }
+.buyerBtn.active { background:#16a085; }
+.messages-list { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:10px; }
+.message { padding:10px 15px; border-radius:20px; max-width:75%; word-wrap:break-word; font-size:0.95em; }
+.message.from { background:#2ecc71; color:white; align-self:flex-start; }
+.message.to { background:#2980b9; color:white; align-self:flex-end; }
+.input-area {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border-top: 1px solid #ddd;
+  align-items: flex-end;
+}
+.input-area input { flex:1; padding:10px; border-radius:8px; border:1px solid #ccc; font-size:1em; width:150px;}
+.input-area button { padding:10px 0px; border:none; border-radius:8px; background:#2e8b57; color:white; cursor:pointer; font-weight:bold; transition:0.2s; }
+.input-area button:hover { background:#27ae60; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span id="userName">Connecté :</span>
+  <button class="logout" id="logoutBtn">Déconnexion</button>
+</div>
+
+<h3>Ajouter un produit</h3>
+<div class="add-product">
+  <input type="text" id="name" placeholder="Nom du produit">
+  <textarea id="description" placeholder="Description"></textarea>
+  <input type="number" id="price" placeholder="Prix">
+  <input type="text" id="whatsapp" placeholder="Numéro WhatsApp">
+  <input type="file" id="image" accept="image/*">
+  <button id="addBtn" class="addBtn">Ajouter</button>
+</div>
+
+<h3>Mes produits en ligne</h3>
+<div class="container" id="myProductsList"></div>
+
+<!-- Chat -->
+<div class="chat-container" id="chatContainer">
+  <h4 id="chatProductName">Messages</h4>
+  <div class="buyerList" id="buyerList"></div>
+  <div class="messages-list" id="messagesList"></div>
+  <div class="input-area">
+    <input type="text" id="messageInput" placeholder="Écrire un message...">
+    <button id="sendBtn">Envoyer</button>
+  </div>
+</div>
+
+<script type="module">
+import { supabase } from './supabase.js';
+
+let currentUser = null;
+let currentProfile = null;
+let activeBuyerId = null;
+let activeProductId = null;
+
+/* Auth */
+const { data:{user} } = await supabase.auth.getUser();
+if(!user) location.href='login.html';
+currentUser = user;
+
+/* Profil */
+const { data: profileData } = await supabase.from('profiles').select('username').eq('id', currentUser.id).single();
+if(profileData) currentProfile = profileData;
+document.getElementById('userName').textContent = currentProfile ? currentProfile.username : "Utilisateur";
+
+/* Déconnexion */
+document.getElementById('logoutBtn').onclick = async ()=>{
+  await supabase.auth.signOut();
+  location.href='login.html';
+}
+
+/* Ajouter produit */
+document.getElementById('addBtn').onclick = async ()=>{
+  const name = document.getElementById('name').value.trim();
+  const description = document.getElementById('description').value.trim();
+  const price = document.getElementById('price').value;
+  const whatsapp = document.getElementById('whatsapp').value.trim();
+  const file = document.getElementById('image').files[0];
+  if(!name || !description || !price || !whatsapp || !file){ alert('Remplis tous les champs'); return; }
+
+  const fileName = `${currentUser.id}_${Date.now()}_${file.name.replace(/\s+/g,'_')}`;
+  const { error:uploadError } = await supabase.storage.from('products').upload(fileName,file);
+  if(uploadError){ alert(uploadError.message); return; }
+
+  const { data:urlData } = supabase.storage.from('products').getPublicUrl(fileName);
+  await supabase.from('products').insert([{
+    name, description, price, whatsapp,
+    imageurl:urlData.publicUrl,
+    user_id: currentUser.id
+  }]);
+
+  loadMyProducts();
+}
+
+/* Charger produits */
+async function loadMyProducts(){
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('created_at',{ascending:false});
+  if(error){ console.error(error); return; }
+
+  const container = document.getElementById('myProductsList');
+  container.innerHTML = '';
+  data.forEach(p=>{
+    const div = document.createElement('div');
+    div.className='myProduct';
+    div.innerHTML=`
+      <img src="${p.imageurl}">
+      <div class="myProduct-info">
+        <strong>${p.name}</strong><br>
+        ${p.description}<br>
+        Prix : ${p.price} FCFA<br>
+        WhatsApp : ${p.whatsapp}
+      </div>
+      <button class="messageBtn">Messages</button>
+      <div class="myProduct-buttons-bottom">
+        <button class="editBtn">Modifier</button>
+        <button class="deleteBtn">Supprimer</button>
+      </div>
+    `;
+    container.appendChild(div);
+
+    div.querySelector('.messageBtn').addEventListener('click', ()=>openProductChat(p.id,p.name));
+    div.querySelector('.editBtn').addEventListener('click', ()=>editProduct(p.id));
+    div.querySelector('.deleteBtn').addEventListener('click', async ()=>{
+      if(confirm("Voulez-vous vraiment supprimer ce produit ?")){
+        await supabase.from('products').delete().eq('id', p.id);
+        loadMyProducts();
+      }
+    });
+  });
+}
+
+/* Modifier produit */
+async function editProduct(productId){
+  const { data:pData } = await supabase.from('products').select('*').eq('id', productId).single();
+  if(!pData){ alert('Produit introuvable'); return; }
+
+  const newName = prompt('Nom du produit:', pData.name);
+  const newDesc = prompt('Description:', pData.description);
+  const newPrice = prompt('Prix:', pData.price);
+  const newWhats = prompt('WhatsApp:', pData.whatsapp);
+  if(!newName||!newDesc||!newPrice||!newWhats) return;
+
+  await supabase.from('products').update({name:newName,description:newDesc,price:newPrice,whatsapp:newWhats}).eq('id',productId);
+  loadMyProducts();
+}
+
+/* Chat */
+async function loadBuyers(productId){
+  const { data } = await supabase.from('messages').select('from_user').eq('product_id',productId).order('created_at',{ascending:false});
+  const buyersContainer = document.getElementById('buyerList');
+  buyersContainer.innerHTML='';
+  const seen = new Set();
+  for(let msg of data){
+    if(!seen.has(msg.from_user)){
+      seen.add(msg.from_user);
+      const { data:userData } = await supabase.from('profiles').select('username').eq('id',msg.from_user).single();
+      const displayName = userData ? userData.username : msg.from_user;
+      const btn = document.createElement('button');
+      btn.className='buyerBtn';
+      btn.dataset.uuid=msg.from_user;
+      btn.textContent=displayName;
+      btn.addEventListener('click',()=>openChat(msg.from_user,productId));
+      buyersContainer.appendChild(btn);
+    }
+  }
+}
+
+function openProductChat(productId, productName){
+  activeProductId=productId;
+  document.getElementById('chatProductName').textContent=`Messages - ${productName}`;
+  document.getElementById('chatContainer').classList.add('open');
+  document.getElementById('messageInput').value='';
+  loadBuyers(productId);
+}
+
+function openChat(buyerId, productId){
+  activeBuyerId=buyerId;
+  activeProductId=productId;
+  document.querySelectorAll('.buyerBtn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.buyerBtn').forEach(b=>{if(b.dataset.uuid===buyerId) b.classList.add('active');});
+  loadMessages();
+}
+
+async function loadMessages(){
+  if(!activeBuyerId||!activeProductId) return;
+  const { data } = await supabase.from('messages')
+    .select('*')
+    .or(`and(product_id.eq.${activeProductId},from_user.eq.${activeBuyerId}),and(product_id.eq.${activeProductId},to_user.eq.${activeBuyerId})`)
+    .order('created_at',{ascending:true});
+  const container = document.getElementById('messagesList');
+  container.innerHTML='';
+  data.forEach(m=>{
+    const div=document.createElement('div');
+    div.className=m.from_user===currentUser.id?'message to':'message from';
+    div.textContent=m.message;
+    container.appendChild(div);
+  });
+  container.scrollTop=container.scrollHeight;
+}
+
+document.getElementById('sendBtn').onclick=async ()=>{
+  const text=document.getElementById('messageInput').value.trim();
+  if(!text||!activeBuyerId||!activeProductId) return;
+  await supabase.from('messages').insert([{message:text,from_user:currentUser.id,to_user:activeBuyerId,product_id:activeProductId}]);
+  document.getElementById('messageInput').value='';
+  loadMessages();
+}
+
+/* Fermer chat si clic à l'extérieur */
+document.addEventListener('click',(e)=>{
+  const chat=document.getElementById('chatContainer');
+  const target=e.target;
+  if(!chat.contains(target) && !target.classList.contains('messageBtn')){
+    chat.classList.remove('open');
+  }
+});
+
+setInterval(()=>{
+  if(activeBuyerId && activeProductId) loadMessages();
+  if(activeProductId) loadBuyers(activeProductId);
+},2000);
+
+loadMyProducts();
+</script>
+</body>
+</html>
